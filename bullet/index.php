@@ -1,105 +1,71 @@
 <!DOCTYPE HTML>
 <html>
 <head>
+<!-- Ensure Display on Mobile Device -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
 <script src="http://code.jquery.com/jquery-2.0.0.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){
+	//fullscreen overlay
+	canvas = document.getElementById("overlay");
+	canvas.width = window.innerWidth;
+	canvas.height = window.innerHeight;
+	//console.log("overlay width:" + canvas.width + ", height:" + canvas.height);
+	
+	//initiate Screen object
+	scr = new Screen(canvas);
+	scr.play();
+	
+	//get comments from forum
+	$.get(<?php echo '"http://gateway-ymfyp2013.rhcloud.com/comments/' . $_GET['t'] . '"'?>, function(comments) {
+		$.each(comments, function(index, value) {
+			//random delay
+			var delay = index + 2 * Math.random(); //range (index+1) +- 1
+			var span = 1000;
+			delay = Math.floor(delay*span);
+			
+			//construct bullet
+			//Bullet(msg,line,spd,pos,color)
+			var msg = value;
+			var line = Math.random()*scr.numOfLine;
+			var spd = 1 + msg.length/6;
+			var bullet = new Bullet(msg,line,spd,canvas.width);
+			setTimeout(function(){scr.loadBullet(bullet)},delay);
+		});
+	});
+	
+	//fix orientation
+	var origin_orient = window.orientation;
+	$(window).bind("orientationchange", function(){
+		var orientation = window.orientation - origin_orient;
+		//scr.loadBullet(new Bullet(orientation.toString()));
+		var new_orientation = orientation ? -orientation : 0;//0 : 180 + orientation;
+		$('html body').css({
+			"-webkit-transform": "rotate(" + new_orientation + "deg)"
+		});
+		if(orientation == 90)
+			$('html body').scrollTop($(document).height());
+		else if(orientation == 0)
+			$('html body').scrollLeft(0);
+	});
+});
+</script>
+
 <script src="bullet.js"></script>
 <script src="screen.js"></script>
 <script src="loadingbar.js"></script>
 <style>
-#overlay
+*
 {
-	/*border: 1px solid black;*/
-	position: absolute;
-	top: 0;
-	left: 0;
-}
-#video
-{
-	position: absolute;
-	top: 0;
-	left: 0;
-}
-#controls
-{
-	position: absolute;
-	top: 380px;
-	left: 0;
+	padding: 0;
+	margin: 0;
 }
 </style>
-<script>
-</script>
 </head>
 <body>
-<div>
-<div id="video"></div>
-<canvas id="overlay" width="640" height="360">
+<canvas id="overlay">
 Oops, your browser does not support canvas!
 </canvas>
-</div>
-<script>
-var tag = document.createElement('script');
-tag.src = "https://www.youtube.com/iframe_api";
-var firstScriptTag = document.getElementsByTagName('script')[0];
-firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-var player;
-function onYouTubePlayerAPIReady() {
-    player = new YT.Player('video', {
-        height: '360',
-        width: '640',
-        videoId: '1u7_0dMbZdM',
-    });
-}
-</script>
-<script>
-function shoot_comments() {
-	$.get('http://gateway-ymfyp2013.rhcloud.com/comments/' + window.location.hash.replace(/^#/, ''), function(data) {
-		comments = data;
-		$.each(comments, function(index, value) {
-			setTimeout(c.loadBullet(new Bullet(value,Math.random()*330)),Math.random()*5000)
-		});
-	});
-}
-
-$(document).ready(function(){
-	shoot_comments();
-});
-
-$(window).bind('hashchange', function(){
-		shoot_comments();
-});
-
-</script>
-<div id="controls">
-<button onclick="(function(c){c.play();player.playVideo()})(c)">play</button>
-<button onclick="(function(c){c.pause();player.pauseVideo()})(c)">pause</button>
-<br />
-<fieldset>
-Text:<input id="textbox" type="text" value="input text here" onfocus="this.value=''" onblur="if(!this.value){this.value='input text here'}"></input><br />
-Color:<input id="colorbox" type="color" value="#FFFFFF"></input><input id="colorrand" type="checkbox">random</input><br />
-Position:<input id="linebox" type="range" min="0" max="330"></input><input id="linerand" type="checkbox">random</input><br />
-<button onclick="shoot()">shoot</button>
-</fieldset>
-</div>
-<script>
-c = new Screen(document.getElementById('overlay'));
-textbox = document.getElementById('textbox');
-linebox = document.getElementById('linebox'); linerand = document.getElementById('linerand');
-colorbox = document.getElementById('colorbox'); colorrand = document.getElementById('colorrand');
-
-function shoot()
-{
-	var spd = textbox.value.length / 5;
-	if (spd>4){spd=4}
-	if (spd<1){spd=1}
-	var line = linebox.value;
-	var color = colorbox.value;
-	if (colorrand.checked){colorbox.value=color='#'+parseInt(Math.floor(Math.random()*parseInt('FFFFFF',16)+1)).toString(16)}
-	if (linerand.checked){linebox.value=line=Math.floor(Math.random()*330+1);}
-	
-	var bullet = new Bullet(textbox.value,line,spd,null,color);
-	c.loadBullet(bullet);
-}
-</script>
 </body>
 </html>

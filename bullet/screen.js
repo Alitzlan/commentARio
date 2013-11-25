@@ -1,4 +1,6 @@
-var numOfLine = 6;
+var numOfLine = 8;
+var defaultFPS = 60; //default 120fps to guerantee performance
+
 var Screen = function(canvas)
 {
 	//Get a canvas to paint on
@@ -7,27 +9,48 @@ var Screen = function(canvas)
 		canvas.width = 640;
 		canvas.height = 480;
 		canvas.id = "overlay";
+		document.createElement("body").appendChild(canvas);
 		return canvas;
 	})();
 	
+	//get context
 	this.ctx = this.c.getContext('2d');
-	this.playFPS = 120; //default 120fps to guerantee performance
-	this.fontsize = canvas.height / numOfLine / 2;
-	//console.log(canvas.height + " " + this.fontsize);
-	this.lineOccupied = Array();
-	for(var i = 0; i < numOfLine; i++)
-		this.lineOccupied.push(0);
 	
-	//Loading bar
+	//Show Loading bar
 	var loadingBar = new LoadingBar(this.c,this.ctx);
 	loadingBar.play();
 	
-	this.screenInterval = null;
+	//set fps
+	this.playFPS = defaultFPS;
+	//set fontsize
+	this.numOfLine = numOfLine;
+	this.lineHeight = this.c.height / this.numOfLine;
+	this.fontsize = Math.floor(this.lineHeight / 1.1);
+	this.textHeight = this.fontsize * 1.1;
+	this.textFreeSpace = this.lineHeight - this.textHeight;
+	this.enterThreshold = this.c.width / 1.5; //allow to enter after
+	//console.log("Text Free Space: " + this.textFreeSpace);
+	
+	//initial bullet container
 	this.bulletPod = new Array();
+	this.outBullet = 0;
+	
+	//initial occupation flag
+	this.lineOccupied = Array();
+	for(var i = 0; i < numOfLine; i++)
+	{
+		this.lineOccupied.push(Array());
+	}
+	
+	//interval function pointer
+	this.screenInterval = null;
+	
+	this.textStyleInit();
 	
 	this.objlog = new Array();
-	this.addLog("Screen created");
+	//this.addLog("Screen created");
 	
+	//Finish Loading
 	loadingBar.stop();
 }
 
@@ -42,38 +65,58 @@ Screen.prototype =
 	
 	loadBullet: function(bullet)
 	{
+			bullet.line = Math.floor(bullet.line % numOfLine);
+			bullet.textlen = this.ctx.measureText(bullet.msg).width;
+			bullet.ypos = bullet.line * this.lineHeight + Math.random() * this.textFreeSpace;
 			this.bulletPod.push(bullet);
+	},
+	
+	textStyleInit: function()
+	{
+		this.ctx.textAlign = 'left';
+		this.ctx.textBaseline = 'top'; 
+		this.ctx.font = this.fontsize + 'px Calibri';
+		this.ctx.lineWidth=1;
+		this.ctx.fillStyle = "white";
+		this.ctx.strokeStyle = "black";
 	},
 	
 	play: function()
 	{
-		if(this.screenInterval)
+		if(this.screenInterval)//already playing
 			return;
-		this.ctx.textAlign = 'left';
-		this.ctx.textBaseline="top"; 
-		this.ctx.font = this.fontsize + 'px Calibri';
-		this.ctx.lineWidth=1;
+		
 		this.screenInterval = (function(screen){
 			return setInterval(function(){
+				//refresh with a key frame
 				screen.ctx.clearRect(0,0,screen.c.width,screen.c.height);
-				for(var i=0;curBullet=screen.bulletPod[i];i++)
+				for(var i=0;curBullet = screen.bulletPod[i];i++)
 				{
-					if(screen.lineOccupied[Math.floor(curBullet.line / numOfLine)] && screen.lineOccupied[Math.floor(curBullet.line/numOfLine)] != curBullet.id)
-					{
-						curBullet.line = (curBullet.line + screen.c.height / numOfLine) % (screen.c.height - screen.fontsize);
+					if(curBullet.out)
 						continue;
-					}
+					if(screen.lineOccupied[curBullet.line][curBullet.id] == null && screen.lineOccupied[curBullet.line].indexOf(true) != -1) //occupied
+						continue;
 					
-					screen.lineOccupied[Math.floor(curBullet.line/numOfLine)] = curBullet.id;
-					screen.ctx.fillStyle = curBullet.color;
-					screen.ctx.strokeStyle = '#'+(parseInt('FFFFFF',16)-parseInt(curBullet.color.substring(1),16)).toString(16);
-					screen.ctx.fillText(curBullet.msg,curBullet.pos-=curBullet.spd,curBullet.line);
-					screen.ctx.strokeText(curBullet.msg,curBullet.pos,curBullet.line);
+					screen.lineOccupied[curBullet.line][curBullet.id] = true;
+					screen.ctx.fillText(curBullet.msg,curBullet.pos-=curBullet.spd,curBullet.ypos);
+					screen.ctx.strokeText(curBullet.msg,curBullet.pos,curBullet.ypos);
 					
-					if(curBullet.pos<-720)
+					if((curBullet.pos + curBullet.textlen) < screen.enterThreshold) //reach threshold, allow enter
 					{
-						screen.lineOccupied[Math.floor(curBullet.line/numOfLine)] = 0;
-						screen.bulletPod.splice(i,1);
+						if(screen.lineOccupied[curBullet.line][curBullet.id])
+							screen.lineOccupied[curBullet.line][curBullet.id] = false;
+
+						if(curBullet.pos < -curBullet.textlen)//exit the screen, clear bullet
+						{
+							screen.bulletPod[i].out = true;
+							screen.outBullet++;
+							
+							if(screen.outBullet == screen.bulletPod.length)
+							{
+								screen.stop();
+								screen.summary();
+							}
+						}
 					}
 				}
 			},1000/screen.playFPS);})(this);
@@ -91,5 +134,24 @@ Screen.prototype =
 	{
 		this.pause();
 		this.ctx.clearRect(0,0,this.c.width,this.c.height);
+	},
+	
+	summary: function()
+	{
+		var body = document.getElementsByTagName("body")[0];
+		var div = document.createElement("div");
+		var h1 = document.createElement("h1");
+		div.style.position = "absolute";
+		div.style.top = "10%";
+		div.style.left = "10%";
+		h1.innerHTML = "Comment Summary";
+		div.appendChild(h1);
+		for(i=0;curBullet = this.bulletPod[i];i++)
+		{
+			var p = document.createElement("p");
+			p.innerHTML = i + ": " + curBullet.msg;
+			div.appendChild(p);
+		}
+		body.appendChild(div);
 	}
 }
